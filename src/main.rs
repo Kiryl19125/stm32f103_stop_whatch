@@ -11,12 +11,12 @@ mod app {
         gpio::*,
         pac,
         prelude::*,
-        timer::{CounterMs, Event},
+        timer::{CounterMs, CounterUs, Event},
     };
 
     #[shared]
     struct Shared {
-        bulet_timer: CounterMs<pac::TIM2>,
+        bullet_timer: CounterUs<pac::TIM2>,
         counter: u32,
     }
 
@@ -66,14 +66,14 @@ mod app {
         tick_timer.listen(Event::Update);
 
 
-        let bulet_timer = ctx.device.TIM2.counter_ms(&clocks);
+        let bullet_timer = ctx.device.TIM2.counter_us(&clocks);
 
         rprintln!("Init complete");
         rprintln!("{}", clocks.sysclk());
 
         (
             Shared {
-                bulet_timer,
+                bullet_timer,
                 counter: 0,
             },
             Local {
@@ -96,28 +96,27 @@ mod app {
     #[task(
         binds = EXTI9_5, 
         priority = 3,local = [start_button, stop_button], 
-        shared = [bulet_timer, counter]
+        shared = [bullet_timer, counter]
     )]
     fn button_click(mut ctx: button_click::Context) {
         if ctx.local.start_button.check_interrupt() {
             rprintln!("Start button");
             ctx.local.start_button.clear_interrupt_pending_bit();
 
-            ctx.shared.bulet_timer.lock(|timer| {
-                timer.start(2.millis()).unwrap();
+            ctx.shared.bullet_timer.lock(|timer| {
+                timer.start(2.micros()).unwrap();
                 timer.listen(Event::Update);
             });
         } else if ctx.local.stop_button.check_interrupt() {
             rprintln!("Stop button");
             ctx.local.stop_button.clear_interrupt_pending_bit();
 
-            ctx.shared.bulet_timer.lock(|timer| {
+            ctx.shared.bullet_timer.lock(|timer| {
                 timer.unlisten(Event::Update);
             });
 
             ctx.shared.counter.lock(|couner| {
-                let seconds = *couner as f32 * 0.002;
-                rprintln!("counter: {}", couner);
+                let seconds = *couner as f32 * 0.000_002;
                 rprintln!("seconds: {}", seconds);
                 *couner = 0;
             });
@@ -134,15 +133,14 @@ mod app {
         ctx.local.led.toggle();
     }
 
-    #[task(binds = TIM2, priority = 1, shared=[counter, bulet_timer])]
+    #[task(binds = TIM2, priority = 1, shared=[counter, bullet_timer])]
     fn increase_counter(mut ctx: increase_counter::Context) {
         ctx.shared
-            .bulet_timer
+            .bullet_timer
             .lock(|timer| timer.clear_interrupt(Event::Update));
 
         ctx.shared.counter.lock(|counter| {
             *counter += 1;
-            // rprintln!("{}", counter);
         })
     }
 }
