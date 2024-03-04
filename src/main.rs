@@ -11,13 +11,14 @@ mod app {
         gpio::*,
         pac,
         prelude::*,
-        timer::{CounterMs, CounterUs, Event},
+        timer::{CounterMs, CounterUs, Event, Delay},
     };
 
     #[shared]
     struct Shared {
         bullet_timer: CounterUs<pac::TIM2>,
         counter: u32,
+        delay_ms: Delay<pac::TIM3, 1000>
     }
 
     #[local]
@@ -68,6 +69,8 @@ mod app {
 
         let bullet_timer = ctx.device.TIM2.counter_us(&clocks);
 
+        let timer_tmp = ctx.device.TIM3.delay_ms(&clocks);
+
         rprintln!("Init complete");
         rprintln!("{}", clocks.sysclk());
 
@@ -75,6 +78,7 @@ mod app {
             Shared {
                 bullet_timer,
                 counter: 0,
+                delay_ms: timer_tmp
             },
             Local {
                 start_button,
@@ -106,6 +110,7 @@ mod app {
             ctx.shared.bullet_timer.lock(|timer| {
                 timer.start(2.micros()).unwrap();
                 timer.listen(Event::Update);
+                
             });
         } else if ctx.local.stop_button.check_interrupt() {
             rprintln!("Stop button");
@@ -113,6 +118,9 @@ mod app {
 
             ctx.shared.bullet_timer.lock(|timer| {
                 timer.unlisten(Event::Update);
+                // let duration = timer.now().duration_since_epoch();
+                // timer.cancel().unwrap();
+                // let time = duration.to_secs();
             });
 
             ctx.shared.counter.lock(|couner| {
